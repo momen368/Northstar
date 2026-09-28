@@ -1,0 +1,1 @@
+"""SQLite engine, session management, and initialization."""
