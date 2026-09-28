@@ -7,7 +7,7 @@ from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
 
 from backend.app.database.base import Base
-from backend.app.database.engine import engine
+from backend.app.database.engine import engine, normalize_database_url
 from backend.app.database.session import SessionLocal
 from backend.app.main import app
 from backend.app.models import (
@@ -39,6 +39,12 @@ def test_health_response(client):
         "service": "AI Resume Analyzer API",
     }
     assert client.get("/api/auth/me").status_code == 401
+
+
+def test_postgres_urls_use_the_installed_psycopg_driver():
+    url = normalize_database_url("postgresql://northstar:placeholder@db.example.org/app")
+
+    assert url.drivername == "postgresql+psycopg"
 
 
 def test_swagger_and_openapi_are_available(client):

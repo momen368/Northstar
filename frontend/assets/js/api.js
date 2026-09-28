@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "./deployment-config.js";
+
 const TOKEN_KEY = "northstar_access_token";
 
 export function getToken() { return sessionStorage.getItem(TOKEN_KEY); }
@@ -14,7 +16,7 @@ export async function apiRequest(path, options = {}) {
     body = JSON.stringify(body);
   }
   let response;
-  try { response = await fetch(path, { ...options, headers, body, credentials: "same-origin" }); }
+  try { response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers, body, credentials: "same-origin" }); }
   catch { throw new Error("Could not reach the server. Check your connection and try again."); }
   if (response.status === 204) return null;
   const payload = await response.json().catch(() => ({}));

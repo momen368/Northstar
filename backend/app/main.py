@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -13,6 +14,7 @@ from backend.app.api.routes.health import router as health_router
 from backend.app.api.routes.jobs import router as jobs_router
 from backend.app.api.routes.resumes import router as resumes_router
 from backend.app.api.routes.recommendations import router as recommendations_router
+from backend.app.core.config import settings
 from backend.app.database.initialization import initialize_database
 
 
@@ -23,6 +25,14 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="AI Resume Analyzer API", version="0.2.0", lifespan=lifespan)
+if settings.frontend_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.frontend_origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
 app.include_router(auth_router)
 app.include_router(health_router)
 app.include_router(resumes_router)

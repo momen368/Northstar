@@ -1,15 +1,12 @@
-# AI Resume Analyzer
+# Northstar
 
-Northstar is a FastAPI and SQLite AI Resume Analyzer with bearer-token authentication, PDF/DOCX extraction, structured resume analysis, owner-scoped job management and matching, semantic RAG, career advice, resume improvements, and a vanilla HTML/CSS/JavaScript interface.
+Northstar is an AI resume analyzer with bearer-token authentication, PDF/DOCX extraction, structured resume analysis, owner-scoped job management and matching, semantic retrieval, career advice, resume improvements, and a vanilla HTML/CSS/JavaScript interface. SQLite is used locally; the API also supports PostgreSQL deployments.
 
-## Requirements
+## Run locally
 
-- Python 3.10 or newer
-- pip
+Requirements: Python 3.10 or newer and pip.
 
-## Run on Windows PowerShell
-
-From the project root:
+From the project root in Windows PowerShell:
 
 ```powershell
 py -m venv .venv
@@ -19,53 +16,72 @@ Copy-Item .env.example .env
 uvicorn backend.app.main:app --reload
 ```
 
-The application runs at `http://127.0.0.1:8000`. The frontend is served from `/`; Swagger UI is at `/docs`, and the OpenAPI schema is at `/openapi.json`.
+The app runs at `http://127.0.0.1:8000`. FastAPI serves the frontend at `/`; Swagger UI is at `/docs`. The local SQLite database is `ai_resume_analyzer.db` by default.
 
-## Deploy a Demo on Render
+## Deploy the frontend on Vercel
 
-The repository includes a `render.yaml` Blueprint. In Render, choose **New + → Blueprint**, connect `momen368/Northstar`, and confirm the resources shown in the Blueprint. The Blueprint runs the FastAPI app, checks `/api/health/database`, and stores the SQLite database and uploaded resumes on a persistent disk at `/var/data`.
+The frontend is plain HTML, CSS, and browser JavaScript in `frontend/`. It does not use React, Next.js, or Vite. Import the GitHub repository into Vercel with:
 
-The persistent disk requires a paid web service plan; Render's free web services do not support persistent disks. The configured `0.5c-512mb` plan is currently listed at $7/month, and the 1 GB disk at $0.25/month. Review the current [Render pricing](https://render.com/pricing) before creating the Blueprint. Do not choose the free plan for this configuration, because the database and uploaded files would not persist across restarts.
+| Setting | Value |
+| --- | --- |
+| Root Directory | `frontend` |
+| Framework Preset | Other |
+| Install Command | `npm install` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Rewrites | None |
 
-During Blueprint creation, provide `AI_BASE_URL`, `AI_MODEL`, and `AI_API_KEY` in Render's environment-variable prompts. These values are not stored in this repository. Use credentials for an OpenAI-compatible chat-completions endpoint; without valid provider settings, resume analysis, matching explanations, and career advice return controlled errors. After deployment, open the Render URL and check `/api/health/database` before creating user accounts.
+Set `NORTHSTAR_API_BASE_URL` to the public HTTPS origin of the separately hosted FastAPI backend, for example `https://northstar-api.example.com`. This URL is public configuration, not a secret. The build rejects a missing API URL on Vercel and rejects localhost URLs. Existing routes are individual static HTML files such as `/login.html` and `/dashboard.html`, so no SPA rewrite is needed.
 
-This setup is intended for a small demo on a single instance. The SQLite database and uploads share a 1 GB disk; monitor its capacity as user data grows.
+Vercel hosts only the static frontend. The FastAPI API and database run separately. `render.yaml` prepares a no-cost Render Free API service; connect it to a PostgreSQL provider and set `DATABASE_URL` in Render. Add the exact Vercel production origin to the backend's `FRONTEND_ORIGINS` variable to allow browser API requests. Restart the backend after changing it.
 
-The app reads `DATABASE_URL` from `.env`; the default stores `ai_resume_analyzer.db` in the project root. Tables are created automatically on startup. To initialize them explicitly without starting the API, run:
+Render Free services sleep when idle and use temporary local filesystems. The database must be external (for example, Neon Free); account records and extracted resume text persist in that database, while original uploaded PDF/DOCX files are not durable on this free service. Keep external services within their free quotas.
 
-```powershell
-python -m backend.init_database
-```
+AI actions require an OpenAI-compatible provider configured on the backend with `AI_BASE_URL`, `AI_MODEL`, and optionally `AI_API_KEY`. No credentials belong in this repository. Review the provider's privacy terms before sending real CVs; some free API tiers use submitted content to improve provider products.
 
-The database connectivity check is available at `/api/health/database`.
+## Environment variables
 
-Authentication endpoints are `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`, and `POST /api/auth/logout`. Login returns an opaque bearer token; only its SHA-256 digest is stored in the database. Tokens expire according to `SESSION_TTL_HOURS` and logout revokes the current token.
+Copy `.env.example` to `.env` for local development. Important settings:
 
-Resume endpoints require `Authorization: Bearer <access_token>`: `POST /api/resumes/upload`, `GET /api/resumes`, `GET /api/resumes/{resume_id}`, and `DELETE /api/resumes/{resume_id}`. Uploads accept structurally valid PDF or DOCX files, are stored under `UPLOADS_DIR` using generated names, and are limited by `MAX_UPLOAD_SIZE_MB` (10 MB by default). Original filenames are retained only as sanitized display metadata. Successful uploads extract and save normalized text in the resume record; empty or unreadable documents are rejected.
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | SQLAlchemy database URL; SQLite locally, PostgreSQL for hosted API |
+| `FRONTEND_ORIGINS` | Comma-separated exact origins allowed by the API's CORS policy |
+| `UPLOADS_DIR` | Directory used for uploaded PDF/DOCX files |
+| `AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY` | Optional OpenAI-compatible chat-completions provider |
+| `EMBEDDING_MODEL` | Optional embeddings endpoint model for RAG |
 
-Analyze an owned resume with `POST /api/resumes/{resume_id}/analyze`. Configure `AI_BASE_URL`, `AI_MODEL`, and optional `AI_API_KEY` for an OpenAI-compatible chat-completions endpoint. Analysis output is validated against the structured Pydantic schema before it is stored and returned.
+Never commit `.env` or provider credentials. Vercel's `NORTHSTAR_API_BASE_URL` configures only the browser's public API origin; it is not an API key.
 
-Job endpoints require a bearer token: `POST /api/jobs`, `GET /api/jobs`, `GET /api/jobs/{job_id}`, `PUT /api/jobs/{job_id}`, `DELETE /api/jobs/{job_id}`, and `GET /api/jobs/search`. Jobs are private to their creator; `skills` are normalized and persisted through the `JobSkill` association. Listing and search responses include `items`, `total`, `limit`, and `offset`. Search filters include `keyword`, `location`, `experience_level`, and `skill`.
+## API and user flows
 
-Job matching uses `POST /api/recommendations/match` with `resume_id` and `job_id`; the latest saved resume analysis is required. Skill/experience/education scoring is deterministic, and the configured chat model writes an evidence-limited explanation. `GET /api/recommendations/{resume_id}` returns saved results sorted by score.
+Auth endpoints are `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`, and `POST /api/auth/logout`. Login returns an opaque bearer token; only its SHA-256 digest is stored. Tokens expire according to `SESSION_TTL_HOURS`.
 
-Career advice is available at `POST /api/career-advisor` with `resume_id` and `question`. Resume improvements use `POST /api/resumes/{resume_id}/improve`. Both combine the latest resume analysis with retrieved knowledge. Resource suggestions cite retrieved chunks; when no relevant content is retrieved, unsupported resources are omitted.
+Resume endpoints require `Authorization: Bearer <access_token>`: `POST /api/resumes/upload`, `GET /api/resumes`, `GET /api/resumes/{resume_id}`, `DELETE /api/resumes/{resume_id}`, `POST /api/resumes/{resume_id}/analyze`, and `POST /api/resumes/{resume_id}/improve`. Uploads accept validated PDF/DOCX files up to `MAX_UPLOAD_SIZE_MB`; extracted text is saved with the resume record.
 
-## AI And RAG Configuration
+Jobs support create/list/read/update/delete and search via `/api/jobs`. Matching uses `POST /api/recommendations/match` and saved results are listed by `GET /api/recommendations/{resume_id}`. Career advice uses `POST /api/career-advisor`. Health checks are `/api/health` and `/api/health/database`.
 
-Set `AI_BASE_URL`, `AI_MODEL`, and optionally `AI_API_KEY` for an OpenAI-compatible chat-completions endpoint. Set `EMBEDDING_MODEL` for its embeddings endpoint. No credentials are included in source; unset provider settings produce controlled service errors.
+The frontend pages are `/`, `/login.html`, `/register.html`, `/dashboard.html`, `/resume.html`, `/jobs.html`, `/job-details.html`, and `/advisor.html`. Browser tokens are held in `sessionStorage` and sent as bearer headers.
 
-Add UTF-8 `.txt`/`.md`, readable PDF, or DOCX reference files under `knowledge_base/jobs/`, `skills/`, `career_roadmaps/`, `learning_resources/`, or `resume_guidelines/`. Ingest and query them with:
+## Knowledge base
+
+Add UTF-8 `.txt`/`.md`, readable PDF, or DOCX reference files under `knowledge_base/jobs/`, `skills/`, `career_roadmaps/`, `learning_resources/`, or `resume_guidelines/`. Ingest and query locally with:
 
 ```powershell
 python -m backend.scripts.rag_demo "Python career roadmap" --ingest
 ```
 
-RAG uses configurable `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`, `RAG_TOP_K`, and `RAG_MIN_SIMILARITY`; chunk metadata and embeddings are stored in SQLite.
+RAG chunk metadata and embeddings are stored in the configured database.
 
-The frontend pages are `/`, `/login.html`, `/register.html`, `/dashboard.html`, `/resume.html`, `/jobs.html`, `/job-details.html`, and `/advisor.html`. Browser auth tokens are held in `sessionStorage` and sent as bearer authorization headers. The dashboard uses the persisted-analysis read endpoint `GET /api/resumes/{resume_id}/analysis` so it never reruns AI just to render saved results.
+## Build and test
 
-Run tests with:
+Build the Vercel frontend from `frontend/`:
+
+```powershell
+npm run build
+```
+
+Run backend tests from the project root:
 
 ```powershell
 pytest backend/tests

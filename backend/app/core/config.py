@@ -11,6 +11,11 @@ load_dotenv(PROJECT_ROOT / ".env")
 class Settings:
     app_env = os.getenv("APP_ENV", "development")
     database_url = os.getenv("DATABASE_URL", "sqlite:///./ai_resume_analyzer.db")
+    frontend_origins = [
+        origin.strip().rstrip("/")
+        for origin in os.getenv("FRONTEND_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
     session_ttl_hours = int(os.getenv("SESSION_TTL_HOURS", "24"))
     uploads_dir = Path(os.getenv("UPLOADS_DIR", str(PROJECT_ROOT / "uploads"))).expanduser()
     max_upload_size_bytes = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10")) * 1024 * 1024

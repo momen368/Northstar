@@ -1,0 +1,11 @@
+{
+  "name": "northstar-frontend",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}
