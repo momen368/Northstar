@@ -21,6 +21,16 @@ uvicorn backend.app.main:app --reload
 
 The application runs at `http://127.0.0.1:8000`. The frontend is served from `/`; Swagger UI is at `/docs`, and the OpenAPI schema is at `/openapi.json`.
 
+## Deploy a Demo on Render
+
+The repository includes a `render.yaml` Blueprint. In Render, choose **New + → Blueprint**, connect `momen368/Northstar`, and confirm the resources shown in the Blueprint. The Blueprint runs the FastAPI app, checks `/api/health/database`, and stores the SQLite database and uploaded resumes on a persistent disk at `/var/data`.
+
+The persistent disk requires a paid web service plan; Render's free web services do not support persistent disks. The configured `0.5c-512mb` plan is currently listed at $7/month, and the 1 GB disk at $0.25/month. Review the current [Render pricing](https://render.com/pricing) before creating the Blueprint. Do not choose the free plan for this configuration, because the database and uploaded files would not persist across restarts.
+
+During Blueprint creation, provide `AI_BASE_URL`, `AI_MODEL`, and `AI_API_KEY` in Render's environment-variable prompts. These values are not stored in this repository. Use credentials for an OpenAI-compatible chat-completions endpoint; without valid provider settings, resume analysis, matching explanations, and career advice return controlled errors. After deployment, open the Render URL and check `/api/health/database` before creating user accounts.
+
+This setup is intended for a small demo on a single instance. The SQLite database and uploads share a 1 GB disk; monitor its capacity as user data grows.
+
 The app reads `DATABASE_URL` from `.env`; the default stores `ai_resume_analyzer.db` in the project root. Tables are created automatically on startup. To initialize them explicitly without starting the API, run:
 
 ```powershell
